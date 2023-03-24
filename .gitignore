@@ -1,0 +1,13 @@
+## Only save source code, no results
+data/
+results/
+weight/
+
+## Don't save non-source code
+src/.vs/
+src/__pycache__
+src/framework/__pycache__
+
+## No proj/solution files
+*.sln
+*.pyproj
