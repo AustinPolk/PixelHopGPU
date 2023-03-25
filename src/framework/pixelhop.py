@@ -15,6 +15,7 @@ import pickle
 import time
 
 from framework.saab import Saab
+from framework.numbaUtils import launchGPUResKernel
 
 def PixelHop_8_Neighbour(feature, dilate, pad):
     print("------------------- Start: PixelHop_8_Neighbour")
@@ -27,23 +28,26 @@ def PixelHop_8_Neighbour(feature, dilate, pad):
         feature = np.pad(feature, ((0,0),(dilate, dilate),(dilate, dilate),(0,0)), 'reflect')
     elif pad == 'zeros':
         feature = np.pad(feature, ((0,0),(dilate, dilate),(dilate, dilate),(0,0)), 'constant', constant_values=0)
+
+    ## flatten res at creation, keep track of dimensions
     if pad == "none":
-        res = np.zeros((S[1]-2*dilate, S[2]-2*dilate, S[0], 9*S[3]))
+        #res = np.zeros((S[1]-2*dilate, S[2]-2*dilate, S[0], 9*S[3]))
+        res = np.zeros(((S[1]-2*dilate) * (S[2]-2*dilate) * S[0] * 9*S[3]))
+        resShape = (S[1]-2*dilate, S[2]-2*dilate, S[0], 9*S[3])
     else:
-        res = np.zeros((S[1], S[2], S[0], 9*S[3]))
+        #res = np.zeros((S[1], S[2], S[0], 9*S[3]))
+        res = np.zeros((S[1] * S[2] * S[0] * 9*S[3]))
+        resShape = (S[1], S[2], S[0], 9*S[3])
+
     idx = np.array([-1, 0, 1])
     feature = np.moveaxis(feature, 0, 2)
-    for i in range(dilate, feature.shape[0]-dilate):
-        for j in range(dilate, feature.shape[1]-dilate):
-            tmp = []
-            for ii in idx:
-                for jj in idx:
-                    iii = i+ii*dilate
-                    jjj = j+jj*dilate
-                    tmp.append(feature[iii, jjj])
-            tmp = np.array(tmp)
-            tmp = np.moveaxis(tmp,0,1)
-            res[i-dilate, j-dilate] = tmp.reshape(S[0],-1)
+
+    ## flatten feature, keep track of its original dimensions
+    featureShape = feature.shape
+    flatFeature = feature.flatten()
+
+    res = launchGPUResKernel(flatFeature, featureShape, res, resShape, dilate, idx)
+
     res = np.moveaxis(res, 2, 0)
     print("       <Info>        Output feature shape: %s"%str(res.shape))
     print("------------------- End: PixelHop_8_Neighbour -> using %10f seconds"%(time.time()-t0))
@@ -54,7 +58,7 @@ def Pixelhop_fit(weight_path, feature, useDC):
     print("       <Info>        Using weight: %s"%str(weight_path))
     t0 = time.time()
     fr = open(weight_path, 'rb')
-    pca_params = pickle.load(fr)
+    pca_params = pickle.load(fr)                
     fr.close()
     weight = pca_params['Layer_0/kernel'].astype(np.float32)
     bias = pca_params['Layer_%d/bias' % 0]
