@@ -69,12 +69,9 @@ def GPUResKernel(d_feature, d_res, dilate, d_idx):
     threadIdx //= threadDimensions[2]       ## remove 3rd dimension
     j = (threadIdx) % threadDimensions[1]   ## position in 2th dimension
     threadIdx //= threadDimensions[1]       ## remove 2nd dimension
-    i = (threadIdx) % threadDimensions[0]   ## position in 1st dimension
+    i = (threadIdx)                         ## position in 1st dimension
 
-    ## only execute this if we are within the bounds from threadDimensions
-    if (i < threadDimensions[0] and j < threadDimensions[1] 
-        and ii < threadDimensions[2] and jj < threadDimensions[3] 
-        and fi < threadDimensions[4] and fj < threadDimensions[5]):     
+    if i < threadDimensions[0]:     
         ## assign from feature to res
         tmpf = Access4D(d_feature, i+d_idx[ii]*dilate+dilate, j+d_idx[jj]*dilate+dilate, fi, fj)
         Assign4D(d_res, i, j, fi, fj, tmpf)
