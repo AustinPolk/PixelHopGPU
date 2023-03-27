@@ -32,11 +32,8 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate):
 
     fShape = featureShape
     rShape = resShape
-
-    dim1 = (fShape[0] - 2 * dilate)
-    dim2 = (fShape[1] - 2 * dilate)
     
-    threadDimensions = (dim1, dim2, 3, 3, fShape[2], fShape[3])
+    threadDimensions = (rShape[0], rShape[1], 3, 3, fShape[2], fShape[3])
     totalThreads = np.asarray(threadDimensions).prod()
     
     threadsPerBlock = (32)
