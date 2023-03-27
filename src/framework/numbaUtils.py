@@ -44,18 +44,16 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate, idx
     
     d_res = cuda.to_device(flatRes)
     d_feature = cuda.to_device(flatFeature)
-    d_idx = cuda.to_device(idx)
 
-    GPUResKernel[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate, d_idx)
+    GPUResKernel[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate)
 
     flatRes = d_res.copy_to_host()      ## unknown error here after using pixelhop neighbor a few times (memory related i guess)
-    ## no need to bring back flatFeature or idx
     res = flatRes.reshape(rShape)               ## unflatten res
    
     return res
 
 @cuda.jit
-def GPUResKernel(d_feature, d_res, dilate, d_idx):
+def GPUResKernel(d_feature, d_res, dilate):
     ## i and j correlate to iteration number in original loop, ii and jj correlate to iteration number in idx loops, and fi and fj correlate to coordinates of elements in the matrices produced by feature[x, y]
     
     threadIdx = cuda.grid(1)        ## index in flattened 6D thread space
@@ -73,7 +71,7 @@ def GPUResKernel(d_feature, d_res, dilate, d_idx):
 
     if i < threadDimensions[0]:     
         ## assign from feature to res
-        tmpf = Access4D(d_feature, i+d_idx[ii]*dilate+dilate, j+d_idx[jj]*dilate+dilate, fi, fj)
+        tmpf = Access4D(d_feature, i+f_idx(ii)*dilate+dilate, j+f_idx(jj)*dilate+dilate, fi, fj)
         Assign4D(d_res, i, j, fi, fj, tmpf)
 
 ## access the flattened feature array in 4D
@@ -85,3 +83,8 @@ def Access4D(arr, w, x, y, z):
 @cuda.jit(device=True)
 def Assign4D(arr, w, x, y, z, value):
     arr[rShape[3] * rShape[2] * rShape[1] * w + rShape[3] * rShape[2] * x + rShape[3] * y + z] = value
+
+## function that mimics an access to the idx array
+@cuda.jit(device=True)
+def f_idx(i):
+    return i - 1
