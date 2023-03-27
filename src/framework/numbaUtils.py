@@ -1,4 +1,3 @@
-import numpy as np 
 from numba import cuda
 import math
 
@@ -9,12 +8,14 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate):
     fShape = featureShape
     rShape = resShape
     
-    threadDimensions = (rShape[0], rShape[1], 3, 3, fShape[2], fShape[3])
-    totalThreads = np.asarray(threadDimensions).prod()
+    threadDimensions = (fShape[0] - 2 * dilate, fShape[1] - 2 * dilate, rShape[2] * rShape[3])
     
-    threadsPerBlock = (32)
-    blocksPerGrid = math.ceil(totalThreads / threadsPerBlock)
-    
+    threadsPerBlock = (6, 6, 6)
+    blocksPerGrid_x = math.ceil(threadDimensions[0] / threadsPerBlock[0])
+    blocksPerGrid_y = math.ceil(threadDimensions[1] / threadsPerBlock[1])
+    blocksPerGrid_z = math.ceil(threadDimensions[2] / threadsPerBlock[2])
+    blocksPerGrid = (blocksPerGrid_x, blocksPerGrid_y, blocksPerGrid_z)
+
     ## TODO: suppress warnings regarding memory overhead from copying
     GPUResKernel[blocksPerGrid, threadsPerBlock](flatFeature, flatRes, dilate)
     
@@ -24,24 +25,20 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate):
 
 @cuda.jit
 def GPUResKernel(d_feature, d_res, dilate):
-    ## i and j correlate to iteration number in original loop, ii and jj correlate to iteration number in idx loops, and fi and fj correlate to coordinates of elements in the matrices produced by feature[x, y]
-    
-    threadIdx = cuda.grid(1)                ## 6D index
-    fj = (threadIdx) % threadDimensions[5]  ## position in 6th dimension
-    threadIdx //= threadDimensions[5]       ## remove 6th dimension
-    fi = (threadIdx) % threadDimensions[4]  ## position in 5th dimension
-    threadIdx //= threadDimensions[4]       ## remove 5th dimension
-    jj = (threadIdx) % threadDimensions[3]  ## position in 4th dimension
-    threadIdx //= threadDimensions[3]       ## remove 4th dimension
-    ii = (threadIdx) % threadDimensions[2]  ## position in 3th dimension
-    threadIdx //= threadDimensions[2]       ## remove 3rd dimension
-    j = (threadIdx) % threadDimensions[1]   ## position in 2th dimension
-    threadIdx //= threadDimensions[1]       ## remove 2nd dimension
-    i = (threadIdx)                         ## position in 1st dimension
+    i, j, r = cuda.grid(3)
 
-    if i < threadDimensions[0]:     
-        tmpf = AccessFeature(d_feature, i+ii*dilate, j+jj*dilate, fi, fj)
-        AssignRes(d_res, i, j, fi, fj, tmpf)
+    if i < threadDimensions[0] and j < threadDimensions[1] and r < threadDimensions[2]:     
+        rj = r % rShape[3]
+        ri = r // rShape[3]
+
+        iii = i + (ri % 3) * dilate         ## might need to mod something else by 3
+        jjj = j + (rj % 3) * dilate
+
+        fj = rj
+        fi = (9 * ri) % fShape[2]
+
+        tmpf = AccessFeature(d_feature, iii, jjj, fi, fj)
+        AssignRes(d_res, i, j, ri, rj, tmpf)
 
 ## access the flattened feature array in 4D
 @cuda.jit(device=True)
