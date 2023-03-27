@@ -26,7 +26,7 @@ for i in range(dilate, feature.shape[0]-dilate):        ## range of size (featur
 
 '''
 
-def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate, idx):
+def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate):
     
     global fShape, rShape, threadDimensions
 
@@ -36,7 +36,7 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate, idx
     dim1 = (fShape[0] - 2 * dilate)
     dim2 = (fShape[1] - 2 * dilate)
     
-    threadDimensions = (dim1, dim2, len(idx), len(idx), fShape[2], fShape[3])
+    threadDimensions = (dim1, dim2, 3, 3, fShape[2], fShape[3])
     totalThreads = np.asarray(threadDimensions).prod()
     
     threadsPerBlock = (32)

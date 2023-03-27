@@ -31,22 +31,19 @@ def PixelHop_8_Neighbour(feature, dilate, pad):
 
     ## flatten res at creation, keep track of dimensions
     if pad == "none":
-        #res = np.zeros((S[1]-2*dilate, S[2]-2*dilate, S[0], 9*S[3]))
         res = np.zeros(((S[1]-2*dilate) * (S[2]-2*dilate) * S[0] * 9*S[3]))
         resShape = (S[1]-2*dilate, S[2]-2*dilate, S[0], 9*S[3])
     else:
-        #res = np.zeros((S[1], S[2], S[0], 9*S[3]))
         res = np.zeros((S[1] * S[2] * S[0] * 9*S[3]))
         resShape = (S[1], S[2], S[0], 9*S[3])
-
-    idx = np.array([-1, 0, 1])
+        
     feature = np.moveaxis(feature, 0, 2)
 
     ## flatten feature, keep track of its original dimensions
     featureShape = feature.shape
     flatFeature = feature.flatten()
 
-    res = launchGPUResKernel(flatFeature, featureShape, res, resShape, dilate, idx)
+    res = launchGPUResKernel(flatFeature, featureShape, res, resShape, dilate)
 
     res = np.moveaxis(res, 2, 0)
     print("       <Info>        Output feature shape: %s"%str(res.shape))
