@@ -42,12 +42,9 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate, idx
     threadsPerBlock = (32)
     blocksPerGrid = math.ceil(totalThreads / threadsPerBlock)
     
-    d_res = cuda.to_device(flatRes)
-    d_feature = cuda.to_device(flatFeature)
-
-    GPUResKernel[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate)
-
-    flatRes = d_res.copy_to_host()      ## unknown error here after using pixelhop neighbor a few times (memory related i guess)
+    ## TODO: suppress warnings regarding memory overhead from copying
+    GPUResKernel[blocksPerGrid, threadsPerBlock](flatFeature, flatRes, dilate)
+    
     res = flatRes.reshape(rShape)               ## unflatten res
    
     return res
