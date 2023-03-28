@@ -16,9 +16,14 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate):
     blocksPerGrid_z = math.ceil(threadDimensions[2] / threadsPerBlock[2])
     blocksPerGrid = (blocksPerGrid_x, blocksPerGrid_y, blocksPerGrid_z)
 
-    ## TODO: suppress warnings regarding memory overhead from copying
-    GPUResKernel[blocksPerGrid, threadsPerBlock](flatFeature, flatRes, dilate)
-    
+    d_feature = cuda.to_device(flatFeature)
+    d_res = cuda.to_device(flatRes)
+
+    GPUResKernel[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate)
+
+    d_feature.copy_to_host(flatFeature)
+    d_res.copy_to_host(flatRes)
+
     res = flatRes.reshape(rShape)
    
     return res
@@ -30,12 +35,14 @@ def GPUResKernel(d_feature, d_res, dilate):
     if i < threadDimensions[0] and j < threadDimensions[1] and r < threadDimensions[2]:     
         rj = r % rShape[3]
         ri = r // rShape[3]
+             
+        whichFeature = r // (fShape[2] * fShape[3])
+        iii = i + (whichFeature // 3) * dilate
+        jjj = j + (whichFeature % 3) * dilate
 
-        iii = i + (ri % 3) * dilate         ## might need to mod something else by 3
-        jjj = j + (rj % 3) * dilate
-
-        fj = rj
-        fi = (9 * ri) % fShape[2]
+        inFeature = r - whichFeature * fShape[2] * fShape[3]
+        fi = inFeature // fShape[3]
+        fj = inFeature % fShape[3]
 
         tmpf = AccessFeature(d_feature, iii, jjj, fi, fj)
         AssignRes(d_res, i, j, ri, rj, tmpf)
