@@ -50,9 +50,10 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate):
 
     GPUResKernel[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate)
 
-    d_res.copy_to_host(flatRes)
+    flatRes = d_res.copy_to_host()
 
     res = flatRes.reshape(rShape)
+
    
     return res
 
@@ -61,25 +62,26 @@ def GPUResKernel(d_feature, d_res, dilate):
     i, j, m = cuda.grid(3)
 
     if i < threadDimensions[0] and j < threadDimensions[1] and m < threadDimensions[2]:
-        i += dilate
-        j += dilate
-        
-        k = m % fShape[3]       ## get k loop param
-        m //= fShape[3]
-        b = m % 9               ## get b loop param
-        m //= 9
-        a = m                   ## get a loop param
+        a, b, k = getABK(m)
+        tmpf = AccessFeature(d_feature, i + (b//3) * dilate, j + (b%3) * dilate, a, k)
+        AssignRes(d_res, i, j, a, fShape[3] * b + k, tmpf)
 
-        tmpf = AccessFeature(d_feature, i + (b//3 - 1) * dilate, j + (b%3 - 1) * dilate, a, k)
-        AssignRes(d_res, i - dilate, j - dilate, a, fShape[3] * b + k, tmpf)
+### get loop index parameters
+@cuda.jit(device=True)
+def getABK(m):
+    a = m // (9 * fShape[3])
+    m -= a * 9 * fShape[3]
+    b = m // fShape[3]
+    m -= b * fShape[3]
+    k = m
+    return a, b, k
 
-
-## access the flattened feature array in 4D
+### access the flattened feature array in 4D
 @cuda.jit(device=True)
 def AccessFeature(arr, w, x, y, z):
     return arr[fShape[3] * fShape[2] * fShape[1] * w + fShape[3] * fShape[2] * x + fShape[3] * y + z]
 
-## access the flattened res array in 4D
+### access the flattened res array in 4D
 @cuda.jit(device=True)
 def AssignRes(arr, w, x, y, z, value):
     arr[rShape[3] * rShape[2] * rShape[1] * w + rShape[3] * rShape[2] * x + rShape[3] * y + z] = value
