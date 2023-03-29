@@ -1,6 +1,35 @@
 from numba import cuda
 import math
 
+'''
+
+## original function
+
+    for i in range(dilate, feature.shape[0]-dilate):
+        for j in range(dilate, feature.shape[1]-dilate):
+            tmp = []
+            for ii in idx:
+                for jj in idx:
+                    iii = i+ii*dilate
+                    jjj = j+jj*dilate
+                    tmpg = feature[iii, jjj]
+                    tmp.append(tmpg)
+            tmp = np.array(tmp)
+            tmp = np.moveaxis(tmp,0,1)
+            tmp = tmp.reshape(S[0], -1)
+            res[i-dilate, j-dilate] = tmp
+
+## simplified version of original function, now this needs to be put on the gpu
+
+    for i in range(dilate, feature.shape[0] - dilate):
+        for j in range(dilate, feature.shape[1] - dilate):
+            for a in range(0, feature.shape[2]):
+                for b in range (0, 9):      ## len idx squared
+                    for k in range(0, feature.shape[3]):
+                        res[i - dilate, j - dilate, a, feature.shape[3] * b + k] = feature[i + (b//3 - 1) * dilate, j + (b%3 - 1) * dilate, a, k]
+
+'''
+
 def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate):
     
     global fShape, rShape, threadDimensions
@@ -8,7 +37,7 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate):
     fShape = featureShape
     rShape = resShape
     
-    threadDimensions = (fShape[0] - 2 * dilate, fShape[1] - 2 * dilate, rShape[2] * rShape[3])
+    threadDimensions = (fShape[0] - 2 * dilate, fShape[1] - 2 * dilate, fShape[2] * 9 * fShape[3])
     
     threadsPerBlock = (6, 6, 6)
     blocksPerGrid_x = math.ceil(threadDimensions[0] / threadsPerBlock[0])
@@ -21,7 +50,6 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate):
 
     GPUResKernel[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate)
 
-    d_feature.copy_to_host(flatFeature)
     d_res.copy_to_host(flatRes)
 
     res = flatRes.reshape(rShape)
@@ -30,22 +58,21 @@ def launchGPUResKernel(flatFeature, featureShape, flatRes, resShape, dilate):
 
 @cuda.jit
 def GPUResKernel(d_feature, d_res, dilate):
-    i, j, r = cuda.grid(3)
+    i, j, m = cuda.grid(3)
 
-    if i < threadDimensions[0] and j < threadDimensions[1] and r < threadDimensions[2]:     
-        rj = r % rShape[3]
-        ri = r // rShape[3]
-             
-        whichFeature = r // (fShape[2] * fShape[3])
-        iii = i + (whichFeature // 3) * dilate
-        jjj = j + (whichFeature % 3) * dilate
+    if i < threadDimensions[0] and j < threadDimensions[1] and m < threadDimensions[2]:
+        i += dilate
+        j += dilate
+        
+        k = m % fShape[3]       ## get k loop param
+        m //= fShape[3]
+        b = m % 9               ## get b loop param
+        m //= 9
+        a = m                   ## get a loop param
 
-        inFeature = r - whichFeature * fShape[2] * fShape[3]
-        fi = inFeature // fShape[3]
-        fj = inFeature % fShape[3]
+        tmpf = AccessFeature(d_feature, i + (b//3 - 1) * dilate, j + (b%3 - 1) * dilate, a, k)
+        AssignRes(d_res, i - dilate, j - dilate, a, fShape[3] * b + k, tmpf)
 
-        tmpf = AccessFeature(d_feature, iii, jjj, fi, fj)
-        AssignRes(d_res, i, j, ri, rj, tmpf)
 
 ## access the flattened feature array in 4D
 @cuda.jit(device=True)
