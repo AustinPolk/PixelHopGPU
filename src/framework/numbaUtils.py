@@ -31,7 +31,7 @@ import math
 
 '''
 
-def launchGPUResKernel(feature, res, dilate):
+def launchGPUResKernel(feature, resShape, dilate):
     
     global totalThreads
 
@@ -40,19 +40,19 @@ def launchGPUResKernel(feature, res, dilate):
     ## setup for kernel execution
     threadDimensions = np.array([(fShape[0] - 2 * dilate), (fShape[1] - 2 * dilate), fShape[2], 9, fShape[3]])
     totalThreads = threadDimensions.prod()
-    threadsPerBlock = (128)
+    threadsPerBlock = (64)
     blocksPerGrid = math.ceil(totalThreads / threadsPerBlock)
 
     ## transfer data to device
     d_feature = cuda.to_device(np.ascontiguousarray(feature))
-    d_res = cuda.to_device(np.ascontiguousarray(res))
+    d_res = cuda.device_array(resShape)     ## allocate space on device directly, no need for transfer
     d_threadDimensions = cuda.to_device(np.ascontiguousarray(threadDimensions))
 
     ## run GPU kernel
     GPUResKernel[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate, fShape[3], d_threadDimensions)
 
     ## transfer result back
-    d_res.copy_to_host(res)
+    res = d_res.copy_to_host()
     
     return res
 
