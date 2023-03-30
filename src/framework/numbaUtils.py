@@ -33,8 +33,6 @@ import math
 '''
 
 def launchGPUResKernel(feature, resShape, dilate):
-    global totalThreads
-
     fShape = feature.shape
     
     ## setup for kernel execution
