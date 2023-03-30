@@ -36,7 +36,7 @@ def launchGPUResKernel(feature, resShape, dilate):
     fShape = feature.shape
     
     ## setup for kernel execution
-    threadDimensions = np.array([(fShape[0] - 2 * dilate), (fShape[1] - 2 * dilate), fShape[2], 9, fShape[3]])
+    threadDimensions = np.array([(fShape[2] - 2 * dilate), (fShape[1] - 2 * dilate), fShape[0], 9, fShape[3]])
     totalThreads = threadDimensions.prod()
     threadsPerBlock = (64)
     blocksPerGrid = math.ceil(totalThreads / threadsPerBlock)
@@ -58,7 +58,7 @@ def GPUResKernel(d_feature, d_res, dilate, f3, d_threadDimensions):
     threadIdx = cuda.grid(1)
     i, j, a, b, k = indices(threadIdx, d_threadDimensions)
     if i < d_threadDimensions[0]:
-        d_res[i, j, a, f3 * b + k] = d_feature[i + (b//3) * dilate, j + (b%3) * dilate, a, k]
+        d_res[a, j, i, f3 * b + k] = d_feature[a, j + (b%3) * dilate, i + (b//3) * dilate, k]
 
 ### get loop index parameters
 @cuda.jit(device=True)

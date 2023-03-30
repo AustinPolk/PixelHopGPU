@@ -30,15 +30,12 @@ def PixelHop_8_Neighbour(feature, dilate, pad):
         feature = np.pad(feature, ((0,0),(dilate, dilate),(dilate, dilate),(0,0)), 'constant', constant_values=0)
 
     if pad == "none":
-        resShape = ((S[1]-2*dilate), (S[2]-2*dilate), S[0], 9*S[3])
+        resShape = (S[0], (S[2]-2*dilate), (S[1]-2*dilate), 9*S[3])
     else:
-        resShape = (S[1], S[2], S[0], 9*S[3])
+        resShape = (S[0], S[2], S[1], 9*S[3])
         
-    feature = np.moveaxis(feature, 0, 2)
-    
     res = launchGPUResKernel(feature, resShape, dilate)
-
-    res = np.moveaxis(res, 2, 0)
+    
     print("       <Info>        Output feature shape: %s"%str(res.shape))
     print("------------------- End: PixelHop_8_Neighbour -> using %10f seconds"%(time.time()-t0))
     return res 
