@@ -6,6 +6,7 @@ import math
 
 ## original function
 
+    idx = [-1, 0, 1]
     for i in range(dilate, feature.shape[0]-dilate):
         for j in range(dilate, feature.shape[1]-dilate):
             tmp = []
@@ -20,7 +21,7 @@ import math
             tmp = tmp.reshape(S[0], -1)
             res[i-dilate, j-dilate] = tmp
 
-## simplified version of original function, now this needs to be put on the gpu
+## simplified version of original function
 
     for i in range(dilate, feature.shape[0] - dilate):
         for j in range(dilate, feature.shape[1] - dilate):
@@ -32,7 +33,6 @@ import math
 '''
 
 def launchGPUResKernel(feature, resShape, dilate):
-    
     global totalThreads
 
     fShape = feature.shape
@@ -47,26 +47,24 @@ def launchGPUResKernel(feature, resShape, dilate):
     d_feature = cuda.to_device(np.ascontiguousarray(feature))
     d_res = cuda.device_array(resShape)     ## allocate space on device directly, no need for transfer
     d_threadDimensions = cuda.to_device(np.ascontiguousarray(threadDimensions))
-
+    
     ## run GPU kernel
     GPUResKernel[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate, fShape[3], d_threadDimensions)
 
     ## transfer result back
     res = d_res.copy_to_host()
-    
     return res
 
 @cuda.jit
 def GPUResKernel(d_feature, d_res, dilate, f3, d_threadDimensions):
     threadIdx = cuda.grid(1)
-
-    if threadIdx < totalThreads:
-        i, j, a, b, k = getIJABK(threadIdx, d_threadDimensions)
+    i, j, a, b, k = indices(threadIdx, d_threadDimensions)
+    if i < d_threadDimensions[0]:
         d_res[i, j, a, f3 * b + k] = d_feature[i + (b//3) * dilate, j + (b%3) * dilate, a, k]
 
 ### get loop index parameters
 @cuda.jit(device=True)
-def getIJABK(m, threadDimensions):
+def indices(m, threadDimensions):
     i = m // (threadDimensions[1] * threadDimensions[2] * threadDimensions[3] * threadDimensions[4])
     m -= i * (threadDimensions[1] * threadDimensions[2] * threadDimensions[3] * threadDimensions[4])
     j = m // (threadDimensions[2] * threadDimensions[3] * threadDimensions[4])
