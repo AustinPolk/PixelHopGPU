@@ -83,6 +83,8 @@ def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', g
     weight_path = '../weight/'+weight_name  ## weight path for saab
 
     ### NEIGHBOUR/BIAS PADDING ###
+    print("       <Info>        dilate: %s"%str(dilate))
+    print("       <Info>        padding: %s"%str(pad))
     S = feature.shape
     if pad == 'reflect':
         feature = np.pad(feature, ((0,0),(dilate, dilate),(dilate, dilate),(0,0)), 'reflect')
@@ -114,11 +116,14 @@ def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', g
         saab.fit(resNeighbour)
 
     ### GET BIAS AND WEIGHT ###
+    print("       <Info>        Using weight: %s"%str(weight_path))
     fr = open(weight_path, 'rb')
     pca_params = pickle.load(fr)                
     fr.close()
     weight = pca_params['Layer_0/kernel'].astype(np.float32)
     bias = pca_params['Layer_%d/bias' % 0]
+    print("       <Info>        bias value: %s"%str(bias))
+    print("       <Info>        weight shape: %s"%str(weight.shape))
 
     ### INVOKE BIAS KERNEL ###
     GPU_Feature_Bias[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate, fShape[3], bias, d_threadDimensions)
