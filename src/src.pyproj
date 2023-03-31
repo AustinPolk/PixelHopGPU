@@ -22,7 +22,6 @@
     <Compile Include="division.py" />
     <Compile Include="example.py" />
     <Compile Include="framework\layer.py" />
-    <Compile Include="framework\numbaUtils.py" />
     <Compile Include="framework\pixelhop.py" />
     <Compile Include="framework\saab.py" />
     <Compile Include="framework\__init__.py" />

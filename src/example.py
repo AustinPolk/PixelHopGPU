@@ -108,12 +108,12 @@ def run():
 
     ################################################## PIXELHOP UNIT 1 ####################################################
         
-    train_feature1=PixelHop_Unit(img_patches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=1, energypercent=0.98)
+    train_feature1=PixelHop_Unit_GPU(img_patches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=1, energypercent=0.98)
     
     ################################################ PIXELHOP UNIT 2 ####################################################
 
     train_featurem1 = MaxPooling(train_feature1)
-    train_feature2=PixelHop_Unit(train_featurem1, dilate=1, pad='reflect',  weight_name='pixelhop2.pkl', getK=1, energypercent=0.98)
+    train_feature2=PixelHop_Unit_GPU(train_featurem1, dilate=1, pad='reflect',  weight_name='pixelhop2.pkl', getK=1, energypercent=0.98)
    
     
     print(train_feature1.shape)
@@ -273,11 +273,11 @@ def run():
                     
                     ################################################## PIXELHOP UNIT 1 ####################################################
         
-                    test_feature1=PixelHop_Unit(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.98)
+                    test_feature1=PixelHop_Unit_GPU(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.98)
 
                     ################################################# PIXELHOP UNIT 2 ####################################################
                     test_featurem1 = MaxPooling(test_feature1)
-                    test_feature2=PixelHop_Unit(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.98)
+                    test_feature2=PixelHop_Unit_GPU(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.98)
                     
     
                     test_feature_reduce_unit1 = test_feature1 
@@ -371,7 +371,6 @@ def run():
             print('*************************************************************************************')
             print('one predicted mask')
             predict_mask = np.argmax(predict_0or1, axis=2)
-
 
             imageio.imwrite('C:/Users/Austin/Desktop/PixelHop/results/'+os.path.basename(test_img_addr), predict_mask)
 

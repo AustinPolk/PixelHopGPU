@@ -17,6 +17,8 @@ import time
 from numba import cuda
 from framework.saab import Saab
 
+threadsPerBlock = 64        ## threads used per block for GPU Kernels
+
 def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', getK=False, useDC=False, energypercent=0.92):
     print("=========== Start: PixelHop_Unit_GPU")
     t0 = time.time()
@@ -36,7 +38,6 @@ def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', g
     threadDimensions = np.array([(fShape[2] - 2 * dilate), (fShape[1] - 2 * dilate), fShape[0], 9, fShape[3]])
     d_threadDimensions = cuda.to_device(np.ascontiguousarray(threadDimensions))
     totalThreads = threadDimensions.prod()
-    threadsPerBlock = (64)
     blocksPerGrid = math.ceil(totalThreads / threadsPerBlock)
 
     ### TRANSFER DATA TO DEVICE ###
@@ -88,7 +89,6 @@ def GPU_Feature_Bias(d_feature, d_res, dilate, f3, bias, d_threadDimensions):
     if i < d_threadDimensions[0]:
         d_res[a, j, i, f3 * b + k] = d_feature[a, j + (b%3) * dilate, i + (b//3) * dilate, k] + 1 / math.sqrt(f3) * bias
 
-### get loop index parameters for neighbour/bias kernel
 @cuda.jit(device=True)
 def indices5(m, threadDimensions):
     i = m // (threadDimensions[1] * threadDimensions[2] * threadDimensions[3] * threadDimensions[4])
