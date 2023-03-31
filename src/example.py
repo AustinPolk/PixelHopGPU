@@ -274,9 +274,7 @@ def run():
                     ################################################## PIXELHOP UNIT 1 ####################################################
         
                     test_feature1=PixelHop_Unit(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.98)
-                   
-        
-                    
+
                     ################################################# PIXELHOP UNIT 2 ####################################################
                     test_featurem1 = MaxPooling(test_feature1)
                     test_feature2=PixelHop_Unit(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.98)
