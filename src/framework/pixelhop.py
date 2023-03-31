@@ -25,17 +25,12 @@ def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', g
     ### NEIGHBOUR/BIAS PADDING ###
     print("       <Info>        dilate: %s"%str(dilate))
     print("       <Info>        padding: %s"%str(pad))
-    S = feature.shape
     if pad == 'reflect':
         feature = np.pad(feature, ((0,0),(dilate, dilate),(dilate, dilate),(0,0)), 'reflect')
     elif pad == 'zeros':
         feature = np.pad(feature, ((0,0),(dilate, dilate),(dilate, dilate),(0,0)), 'constant', constant_values=0)
-
-    if pad == "none":
-        resShape = (S[0], (S[2]-2*dilate), (S[1]-2*dilate), 9*S[3])
-    else:
-        resShape = (S[0], S[2], S[1], 9*S[3])
     fShape = feature.shape
+    resShape = (fShape[0], fShape[2] - 2*dilate, fShape[1] - 2*dilate , 9*fShape[3])
 
     ### NEIGHBOUR/BIAS KERNEL THREAD SETUP###
     threadDimensions = np.array([(fShape[2] - 2 * dilate), (fShape[1] - 2 * dilate), fShape[0], 9, fShape[3]])
