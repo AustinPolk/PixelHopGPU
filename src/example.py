@@ -38,9 +38,13 @@ print(train_img_addrs)
 
 
 
-def run():
+def run(RUN_ID, RUN_DATA_FILE):
     
     start_train = timeit.default_timer()
+    training_pixelhop_time = 0
+    training_kernel_time = 0
+    training_saab_time = 0
+    training_transfer_time = 0
 
     print("----------------------TRAINING-------------------------")
     # Initialize
@@ -108,13 +112,20 @@ def run():
 
     ################################################## PIXELHOP UNIT 1 ####################################################
         
-    train_feature1=PixelHop_Unit_GPU(img_patches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=1, energypercent=0.98)
-    
+    train_feature1, pixel, saab, kernel, transfer =PixelHop_Unit_GPU(img_patches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=1, energypercent=0.98)
+    training_pixelhop_time += pixel
+    training_saab_time += saab
+    training_kernel_time += kernel
+    training_transfer_time += transfer
+
     ################################################ PIXELHOP UNIT 2 ####################################################
 
     train_featurem1 = MaxPooling(train_feature1)
-    train_feature2=PixelHop_Unit_GPU(train_featurem1, dilate=1, pad='reflect',  weight_name='pixelhop2.pkl', getK=1, energypercent=0.98)
-   
+    train_feature2, pixel, saab, kernel, transfer =PixelHop_Unit_GPU(train_featurem1, dilate=1, pad='reflect',  weight_name='pixelhop2.pkl', getK=1, energypercent=0.98)
+    training_pixelhop_time += pixel
+    training_saab_time += saab
+    training_kernel_time += kernel
+    training_transfer_time += transfer
     
     print(train_feature1.shape)
     print(train_feature2.shape)
@@ -216,13 +227,17 @@ def run():
     print('All models saved!!!')
 
     stop_train = timeit.default_timer()
+    training_time = timedelta(seconds=stop_train-start_train)
 
-    print('Total Time: ' + str(timedelta(seconds=stop_train-start_train)))
+    print('Total Time: ' + str(training_time))
     f = open('C:/Users/Austin/Desktop/PixelHop/results/train_time.txt','w+')
-    f.write('Total Time: ' + str(timedelta(seconds=stop_train-start_train))+'\n')
+    f.write('Total Time: ' + str(training_time)+'\n')
     f.close()
 
-
+    testing_pixelhop_time = 0
+    testing_saab_time = 0
+    testing_kernel_time = 0
+    testing_transfer_time = 0
 
     start_test = timeit.default_timer()
     print("----------------------TESTING-------------------------")
@@ -273,12 +288,19 @@ def run():
                     
                     ################################################## PIXELHOP UNIT 1 ####################################################
         
-                    test_feature1=PixelHop_Unit_GPU(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.98)
+                    test_feature1, pixel, saab, kernel, transfer =PixelHop_Unit_GPU(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.98)
+                    testing_pixelhop_time += pixel
+                    testing_saab_time += saab
+                    testing_kernel_time += kernel
+                    testing_transfer_time += transfer
 
                     ################################################# PIXELHOP UNIT 2 ####################################################
                     test_featurem1 = MaxPooling(test_feature1)
-                    test_feature2=PixelHop_Unit_GPU(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.98)
-                    
+                    test_feature2, pixel, saab, kernel, transfer =PixelHop_Unit_GPU(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.98)
+                    testing_pixelhop_time += pixel
+                    testing_saab_time += saab
+                    testing_kernel_time += kernel
+                    testing_transfer_time += transfer
     
                     test_feature_reduce_unit1 = test_feature1 
                     test_feature_reduce_unit2 = myResize(test_feature2, test_img_subpatches.shape[1], test_img_subpatches.shape[2])
@@ -376,14 +398,36 @@ def run():
 
     
     stop_test = timeit.default_timer()
+    testing_time = timedelta(seconds=stop_test-start_test)
 
-    print('Total Time: ' + str(timedelta(seconds=stop_test-start_test)))
+    print('Total Time: ' + str(testing_time))
     f = open('C:/Users/Austin/Desktop/PixelHop/results/test_time.txt','w+')
-    f.write('Total Time: ' + str(timedelta(seconds=stop_test-start_test))+'\n')
+    f.write('Total Time: ' + str(testing_time)+'\n')
     f.close()
 
+    #f = open('C:/Users/Austin/Desktop/PixelHop/results/times.txt','w+')
+    RUN_DATA_FILE.write('==> Begin run %s\n'%(str(RUN_ID)))
+    RUN_DATA_FILE.write('=====> Training time: %s\n'%(str(training_time)))
+    RUN_DATA_FILE.write('--------- Training time for saab: %s seconds\n'%(str(training_saab_time)))
+    RUN_DATA_FILE.write('--------- Training time spent in kernels: %s seconds\n'%(str(training_kernel_time)))
+    RUN_DATA_FILE.write('--------- Training time spent transferring data: %s seconds\n'%(str(training_transfer_time)))
+    RUN_DATA_FILE.write('--------- Training time spent in pixelhop.py: %s seconds\n'%(str(training_pixelhop_time)))
+    RUN_DATA_FILE.write('=====> Testing time: %s\n'%(str(testing_time)))
+    RUN_DATA_FILE.write('--------- Testing time for saab: %s seconds\n'%(str(testing_saab_time)))
+    RUN_DATA_FILE.write('--------- Testing time spent in kernels: %s seconds\n'%(str(testing_kernel_time)))
+    RUN_DATA_FILE.write('--------- Testing time spent transferring data: %s seconds\n'%(str(testing_transfer_time)))
+    RUN_DATA_FILE.write('--------- Testing time spent in pixelhop.py: %s seconds\n'%(str(testing_pixelhop_time)))
+    RUN_DATA_FILE.write('==> End run %s\n'%(str(RUN_ID)))
+    #f.close()
+
+    #return training_time, training_pixelhop_time, training_saab_time, training_kernel_time, training_transfer_time, testing_time, testing_pixelhop_time, testing_saab_time, testing_kernel_time, testing_transfer_time
     
 if __name__=="__main__":
-
-    run()
+    f = open('C:/Users/Austin/Desktop/PixelHop/results/times.txt','w+')
+    for i in range(0, 15):
+        run(i, f)
+    f.close()
+    exit()
+    
+    
     

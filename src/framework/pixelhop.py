@@ -22,6 +22,9 @@ threadsPerBlock = 64        ## threads used per block for GPU Kernels
 def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', getK=False, useDC=False, energypercent=0.92):
     print("=========== Start: PixelHop_Unit_GPU")
     t0 = time.time()
+    saabTime = 0
+    kernelTime = 0
+    transferTime = 0
     weight_path = '../weight/'+weight_name  ## weight path for saab
 
     ### NEIGHBOUR/BIAS PADDING ###
@@ -43,13 +46,21 @@ def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', g
     ### TRANSFER DATA TO DEVICE ###
     d_feature = cuda.to_device(np.ascontiguousarray(feature))
     d_res = cuda.device_array(resShape)
+    t1 = time.time()
+    transferTime += (t1 - t0)
 
     ### INVOKE NEIGHBOR KERNEL IF USING SAAB ###
     if getK == True:
+        t3 = time.time()
         GPU_8_Neighbour[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate, fShape[3], d_threadDimensions)
+        t1 = time.time()
+        kernelTime += (t1 - t3)
         resNeighbour = d_res.copy_to_host()
+        t2 = time.time()
+        transferTime += (t2 - t1)
         saab = Saab(weight_path, kernel_sizes=np.array([2]), useDC=useDC, energy_percent=energypercent)
-        saab.fit(resNeighbour)
+        t2 = saab.fit(resNeighbour)
+        saabTime += t2
 
     ### GET BIAS AND WEIGHT ###
     print("       <Info>        Using weight: %s"%str(weight_path))
@@ -62,18 +73,26 @@ def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', g
     print("       <Info>        weight shape: %s"%str(weight.shape))
 
     ### INVOKE BIAS KERNEL ###
+    t1 = time.time()
     GPU_Feature_Bias[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate, fShape[3], bias, d_threadDimensions)
+    t2 = time.time()
+    kernelTime += (t2 - t1)
 
     ### COPY RESULT AND CONTINUE ON HOST ###
+    t1 = time.time()
     feature_w_bias = d_res.copy_to_host()
+    t2 = time.time()
+    transferTime += (t2 - t1)
+
     transformed_feature = np.matmul(feature_w_bias, np.transpose(weight))
     if useDC == True:
         e = np.zeros((1, weight.shape[0]))
         e[0, 0] = 1
         transformed_feature -= bias * e
+    t1 = time.time() - t0
     print("       <Info>        Output feature shape: %s"%str(transformed_feature.shape))
-    print("=========== End: PixelHop_Unit_GPU -> using %10f seconds"%(time.time()-t0))
-    return transformed_feature
+    print("=========== End: PixelHop_Unit_GPU -> using %10f seconds"%(t1))
+    return transformed_feature, t1, saabTime, kernelTime, transferTime
 
 @cuda.jit
 def GPU_8_Neighbour(d_feature, d_res, dilate, f3, d_threadDimensions):

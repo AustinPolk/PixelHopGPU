@@ -78,7 +78,9 @@ class Saab():
         fw = open(self.pca_name, 'wb')
         pickle.dump(pca_params, fw)
         fw.close()
+        t1 = time.time()-t0
         print("       <Info>        Save pca params as name: %s"%str(self.pca_name))
-        print("------------------- End: Saab transformation -> using %10f seconds"%(time.time()-t0))    
+        print("------------------- End: Saab transformation -> using %10f seconds"%(t1))
+        return t1
 
 
