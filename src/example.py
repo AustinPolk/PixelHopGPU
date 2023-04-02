@@ -149,19 +149,14 @@ def run():
                     for l in range(patch_size):
                         gt = mask_patch_list[patch_ind][k,l]
                         # get features
-                        feature1 = np.array([])
+                        feature = np.array([])
                         # subpatch_ind = patch_ind*(div(patch_size,subpatch_size))*(div(patch_size,subpatch_size)) + (div(k,subpatch_size))*(div(patch_size,subpatch_size)) + l//subpatch_size 
-                        feature1 = np.append(feature1, img_patch_list[patch_ind][k,l,:]) # intensity feature
-                        feature1 = np.append(feature1, [div(patch_size,2) - abs(i+k-div(patch_size,2)), div(patch_size,2) - abs(j+l-div(patch_size,2))]) # positional feature
-                        
-                        feature2 = np.array([])
-                        feature2 = np.append(feature2, img_patch_list[patch_ind][k,l,:]) # intensity feature
-                        feature2 = np.append(feature2, [div(patch_size,2) - abs(i+k-div(patch_size,2)), div(patch_size,2) - abs(j+l-div(patch_size,2))]) # positional feature
-                        
+                        feature = np.append(feature, img_patch_list[patch_ind][k,l,:]) # intensity feature
+                        feature = np.append(feature, [div(patch_size,2) - abs(i+k-div(patch_size,2)), div(patch_size,2) - abs(j+l-div(patch_size,2))]) # positional feature
 
                         # Add all the features together
-                        feature1 = np.append(feature1, train_feature_unit1[patch_ind,:])   
-                        feature2 = np.append(feature2, train_feature_unit2[patch_ind,:])   
+                        feature1 = np.append(feature, train_feature_unit1[patch_ind,:])   
+                        feature2 = np.append(feature, train_feature_unit2[patch_ind,:])   
 
                         feature_list_unit1.append(feature1)
                         feature_list_unit2.append(feature2)
@@ -169,8 +164,6 @@ def run():
                         gt_list.append(gt)
                 patch_ind += 1
 
-    del feature1, feature2
-    
     gt_list = np.array(gt_list)
     feature_list_unit1 = np.array(feature_list_unit1) 
     feature_list_unit2 = np.array(feature_list_unit2)  
@@ -300,33 +293,23 @@ def run():
                         for l in range(patch_size):
                             ######################################
                             # get features
-                            feature1 = np.array([])
+                            feature = np.array([])
                             # patch_ind = (div(k,patch_size))*(div(patch_size,patch_size)) + div(l,patch_size) # int div
                             # subpatch_ind = (div(k,subpatch_size))*(div(patch_size,subpatch_size)) + div(l,subpatch_size) # int div
-                            feature1 = np.append(feature1, test_img_patch[k,l,:])
-                            feature1 = np.append(feature1, [div(patch_size,2) - abs(i+k-div(patch_size,2)), div(patch_size,2) - abs(j+l-div(patch_size,2))]) #int div
-                            
-                            feature2 = np.array([])
-                            feature2 = np.append(feature2, test_img_patch[k,l,:])
-                            feature2 = np.append(feature2, [div(patch_size,2) - abs(i+k-div(patch_size,2)), div(patch_size,2) - abs(j+l-div(patch_size,2))]) #int div
-                            
+                            feature = np.append(feature, test_img_patch[k,l,:])
+                            feature = np.append(feature, [div(patch_size,2) - abs(i+k-div(patch_size,2)), div(patch_size,2) - abs(j+l-div(patch_size,2))]) #int div
                             
                             # feature = np.append(feature, test_feature12[0,:]) #takes only first few comps
-                            feature1 = np.append(feature1, test_feature_unit1[patch_ind,:])
-                            feature2 = np.append(feature2, test_feature_unit2[patch_ind,:])
+                            feature1 = np.append(feature, test_feature_unit1[patch_ind,:])
+                            feature2 = np.append(feature, test_feature_unit2[patch_ind,:])
 
                             test_feature_list_unit1.append(feature1)
                             test_feature_list_unit2.append(feature2)
-                            
-                            
-                    del feature1, feature2#, feature3, feature4
                     
-                    
+
                     feature_list_unit1 = np.array(test_feature_list_unit1)
                     feature_list_unit2 = np.array(test_feature_list_unit2)
-                    
-                    
-                    
+
                     print(feature_list_unit1.shape)
                     print(feature_list_unit2.shape)
 
