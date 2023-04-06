@@ -136,34 +136,36 @@ def run():
     
     # Aligned all the features along with the ground truth
     feature_list_unit1, feature_list_unit2, gt_list = [], [], []
+
+    np_mask_patch_list = np.array(mask_patch_list)
+    np_img_patch_list = np.array(img_patch_list)
+
     patch_ind = 0
     # Control the num of training images
-    count = 0
-    for train_img_addr in train_img_addrs:
-        count += 1
-        if count > num_training_imgs: break
-        for i in range(0, img_size, delta_x):
-            for j in range(0, img_size, delta_x):
-                # for each patch
-                for k in range(patch_size):
-                    for l in range(patch_size):
-                        gt = mask_patch_list[patch_ind][k,l]
+    count = num_training_imgs
+    for train_img_addr in range(0, count):
+        for i in range(0, img_size//delta_x):
+            for j in range(0, img_size//delta_x):
+                for k in range(0, patch_size):
+                    for l in range(0, patch_size):
+                        patch_ind = i* (img_size//delta_x) + j
+                        gt = np_mask_patch_list[patch_ind][k,l]    ## single value
                         # get features
                         feature = np.array([])
                         # subpatch_ind = patch_ind*(div(patch_size,subpatch_size))*(div(patch_size,subpatch_size)) + (div(k,subpatch_size))*(div(patch_size,subpatch_size)) + l//subpatch_size 
-                        feature = np.append(feature, img_patch_list[patch_ind][k,l,:]) # intensity feature
-                        feature = np.append(feature, [div(patch_size,2) - abs(i+k-div(patch_size,2)), div(patch_size,2) - abs(j+l-div(patch_size,2))]) # positional feature
+                        feature = np.append(feature, np_img_patch_list[patch_ind][k,l,:]) # intensity feature  ## appending an array
+                        feature = np.append(feature, [div(patch_size,2) - abs(i*delta_x+k-div(patch_size,2)), div(patch_size,2) - abs(j*delta_x+l-div(patch_size,2))]) # positional feature ## appending an array
 
                         # Add all the features together
-                        feature1 = np.append(feature, train_feature_unit1[patch_ind,:])   
+                        feature1 = np.append(feature, train_feature_unit1[patch_ind,:])     ## appending an array
                         feature2 = np.append(feature, train_feature_unit2[patch_ind,:])   
 
                         feature_list_unit1.append(feature1)
-                        feature_list_unit2.append(feature2)
+                        feature_list_unit2.append(feature2) ## appending a arrays
 
-                        gt_list.append(gt)
-                patch_ind += 1
+                        gt_list.append(gt)  ## appending single values
 
+    patch_ind += 1  ## adjusting for different way of generating patch_ind (will need to get this atomically or just formulaically)
     gt_list = np.array(gt_list)
     feature_list_unit1 = np.array(feature_list_unit1) 
     feature_list_unit2 = np.array(feature_list_unit2)  
