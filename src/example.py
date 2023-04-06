@@ -7,6 +7,7 @@ This code uses 1024x1024 images/masks. Patches of 64x64 from images and labels h
 """
 
 import numpy as np 
+from numba import cuda
 import os, glob
 from framework.layer import *
 from framework.pixelhop import *
@@ -134,48 +135,43 @@ def run():
     print(train_feature_unit1.shape)
     print(train_feature_unit2.shape)
     
+    ### NEW CODE ###
+    count = num_training_imgs
+    patch_ind = count * (img_size//delta_x) * (img_size//delta_x)
     np_img_patch_list = np.array(img_patch_list)
 
-    patch_ind = 0
-    count = num_training_imgs
-
+    ## get parameters for threading
     depth1 = np_img_patch_list.shape[3] + 2 + train_feature_unit1.shape[1]
     depth2 = np_img_patch_list.shape[3] + 2 + train_feature_unit2.shape[1]
     depth = max(depth1, depth2)
     feature_shape1 = (count, img_size//delta_x, img_size//delta_x, patch_size, patch_size, depth1)
     feature_shape2 = (count, (img_size//delta_x), (img_size//delta_x), patch_size, patch_size, depth2)
-    feature_list_unit1 = np.zeros(feature_shape1)
-    feature_list_unit2 = np.zeros(feature_shape2)
 
-    for t in range(0, count):
-        for i in range(0, img_size//delta_x):
-            for j in range(0, img_size//delta_x):
-                for k in range(0, patch_size):
-                    for l in range(0, patch_size):
-                        patch_ind = t * (img_size//delta_x) * (img_size//delta_x) + i * (img_size//delta_x) + j
-                        # get features
-                        for d in range(0, depth):
-                            if d < np_img_patch_list.shape[3]:
-                                feature_list_unit1[t, i, j, k, l, d] = np_img_patch_list[patch_ind][k,l,d]
-                                feature_list_unit2[t, i, j, k, l, d] = np_img_patch_list[patch_ind][k,l,d]
-                            elif d == np_img_patch_list.shape[3]:
-                                feature_list_unit1[t, i, j, k, l, d] = div(patch_size,2) - abs(i*delta_x+k-div(patch_size,2))
-                                feature_list_unit2[t, i, j, k, l, d] = div(patch_size,2) - abs(i*delta_x+k-div(patch_size,2))
-                            elif d == 1 + np_img_patch_list.shape[3]:
-                                feature_list_unit1[t, i, j, k, l, d] = div(patch_size,2) - abs(j*delta_x+l-div(patch_size,2))
-                                feature_list_unit2[t, i, j, k, l, d] = div(patch_size,2) - abs(j*delta_x+l-div(patch_size,2))
-                            elif d < depth1 and depth2:
-                                feature_list_unit1[t, i, j, k, l, d] = train_feature_unit1[patch_ind, d - (np_img_patch_list.shape[3] + 2)]
-                                feature_list_unit2[t, i, j, k, l, d] = train_feature_unit2[patch_ind, d - (np_img_patch_list.shape[3] + 2)]
-                            elif d < depth2:
-                                feature_list_unit2[t, i, j, k, l, d] = train_feature_unit2[patch_ind, d - (np_img_patch_list.shape[3] + 2)]
-                                
-    patch_ind += 1  ## adjusting for different way of generating patch_ind (will need to get this atomically or just formulaically)
-    gt_list = np.array(mask_patch_list).flatten()      ## equivalent to assigning gt_list in the above loop
+    ## allocate and transfer data to device
+    d_img_patch_list = cuda.to_device(np.ascontiguousarray(img_patch_list))
+    d_train_feature_unit1 = cuda.to_device(np.ascontiguousarray(train_feature_unit1))
+    d_train_feature_unit2 = cuda.to_device(np.ascontiguousarray(train_feature_unit2))
+    d_feature_list_unit1 = cuda.device_array(feature_shape1)
+    d_feature_list_unit2 = cuda.device_array(feature_shape2)
 
-    feature_list_unit1 = feature_list_unit1.reshape(count * (img_size//delta_x) * (img_size//delta_x) * patch_size * patch_size, -1)
-    feature_list_unit2 = feature_list_unit2.reshape(count * (img_size//delta_x) * (img_size//delta_x) * patch_size * patch_size, -1)
+    ## setup thread dimensions
+    threadDimensions = np.ascontiguousarray([count, img_size//delta_x, img_size//delta_x, patch_size, patch_size, depth])
+    d_threadDimensions = cuda.to_device(threadDimensions)
+    totalThreads = threadDimensions.prod()
+    threadsPerBlock = 64
+    blocksPerGrid = math.ceil(totalThreads/threadsPerBlock)
     
+    ## run device kernel
+    GPU_Feature[blocksPerGrid, threadsPerBlock](d_img_patch_list, d_train_feature_unit1, d_train_feature_unit2, d_feature_list_unit1, d_feature_list_unit2, d_threadDimensions, delta_x, patch_size, depth1, depth2)
+
+    ## transfer results back
+    feature_list_unit1 = d_feature_list_unit1.copy_to_host().reshape(count * (img_size//delta_x) * (img_size//delta_x) * patch_size * patch_size, -1)
+    feature_list_unit2 = d_feature_list_unit2.copy_to_host().reshape(count * (img_size//delta_x) * (img_size//delta_x) * patch_size * patch_size, -1)
+
+    ## get gt_list from mask_patch_list directly
+    gt_list = np.array(mask_patch_list).flatten()
+    ### END NEW CODE ###
+
     print(feature_list_unit1.shape)
     print(feature_list_unit2.shape)
     
@@ -372,6 +368,43 @@ def run():
     f = open('C:/Users/Austin/Desktop/PixelHop/results/test_time.txt','w+')
     f.write('Total Time: ' + str(timedelta(seconds=stop_test-start_test))+'\n')
     f.close()
+
+@cuda.jit
+def GPU_Feature(d_img_patch_list, d_train_feature_unit1, d_train_feature_unit2, d_feature_list_unit1, d_feature_list_unit2, d_threadDimensions, delta_x, patch_size, depth1, depth2):
+	threadIdx = cuda.grid(1)
+	t, i, j, k, l, d = indices6(threadIdx, d_threadDimensions)
+	if t < d_threadDimensions[0]:
+		i3 = d_img_patch_list.shape[3]
+		patch_ind = t * (img_size//delta_x) * (img_size//delta_x) + i * (img_size//delta_x) + j
+		if d < i3:
+			d_feature_list_unit1[t, i, j, k, l, d] = d_img_patch_list[patch_ind,k,l,d]
+			d_feature_list_unit2[t, i, j, k, l, d] = d_img_patch_list[patch_ind,k,l,d]
+		elif d == i3:
+			d_feature_list_unit1[t, i, j, k, l, d] = patch_size//2 - abs(i*delta_x+k-patch_size//2)
+			d_feature_list_unit2[t, i, j, k, l, d] = patch_size//2 - abs(i*delta_x+k-patch_size//2)
+		elif d == i3 + 1:
+			d_feature_list_unit1[t, i, j, k, l, d] = patch_size//2 - abs(j*delta_x+l-patch_size//2)
+			d_feature_list_unit2[t, i, j, k, l, d] = patch_size//2 - abs(j*delta_x+l-patch_size//2)
+		elif d < depth1 and depth2:
+			d_feature_list_unit1[t, i, j, k, l, d] = d_train_feature_unit1[patch_ind, d - (i3 + 2)]
+			d_feature_list_unit2[t, i, j, k, l, d] = d_train_feature_unit2[patch_ind, d - (i3 + 2)]
+		elif d < depth2:
+			d_feature_list_unit2[t, i, j, k, l, d] = d_train_feature_unit2[patch_ind, d - (i3 + 2)]
+
+@cuda.jit(device=True)
+def indices6(m, threadDimensions):
+    t = m // (threadDimensions[1] * threadDimensions[2] * threadDimensions[3] * threadDimensions[4] * threadDimensions[5])
+    m -= t * (threadDimensions[1] * threadDimensions[2] * threadDimensions[3] * threadDimensions[4] * threadDimensions[5])
+    i = m // (threadDimensions[2] * threadDimensions[3] * threadDimensions[4] * threadDimensions[5])
+    m -= i * (threadDimensions[2] * threadDimensions[3] * threadDimensions[4] * threadDimensions[5])
+    j = m // (threadDimensions[3] * threadDimensions[4] * threadDimensions[5])
+    m -= j * (threadDimensions[3] * threadDimensions[4] * threadDimensions[5])
+    k = m // (threadDimensions[4] * threadDimensions[5])
+    m -= k * (threadDimensions[4] * threadDimensions[5])
+    l = m // (threadDimensions[5])
+    m -= l * (threadDimensions[5])
+    d = m
+    return t, i, j, k, l, d
 
     
 if __name__=="__main__":
