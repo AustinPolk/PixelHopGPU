@@ -134,14 +134,19 @@ def run():
     print(train_feature_unit1.shape)
     print(train_feature_unit2.shape)
     
-    # Aligned all the features along with the ground truth
-    feature_list_unit1, feature_list_unit2 = [], []
-
     np_img_patch_list = np.array(img_patch_list)
 
     patch_ind = 0
-    # Control the num of training images
     count = num_training_imgs
+
+    depth1 = np_img_patch_list.shape[3] + 2 + train_feature_unit1.shape[1]
+    depth2 = np_img_patch_list.shape[3] + 2 + train_feature_unit2.shape[1]
+    depth = max(depth1, depth2)
+    feature_shape1 = (count, img_size//delta_x, img_size//delta_x, patch_size, patch_size, depth1)
+    feature_shape2 = (count, (img_size//delta_x), (img_size//delta_x), patch_size, patch_size, depth2)
+    feature_list_unit1 = np.zeros(feature_shape1)
+    feature_list_unit2 = np.zeros(feature_shape2)
+
     for t in range(0, count):
         for i in range(0, img_size//delta_x):
             for j in range(0, img_size//delta_x):
@@ -149,22 +154,27 @@ def run():
                     for l in range(0, patch_size):
                         patch_ind = t * (img_size//delta_x) * (img_size//delta_x) + i * (img_size//delta_x) + j
                         # get features
-                        feature = np.array([])
-                        # subpatch_ind = patch_ind*(div(patch_size,subpatch_size))*(div(patch_size,subpatch_size)) + (div(k,subpatch_size))*(div(patch_size,subpatch_size)) + l//subpatch_size 
-                        feature = np.append(feature, np_img_patch_list[patch_ind][k,l,:]) # intensity feature  ## appending an array
-                        feature = np.append(feature, [div(patch_size,2) - abs(i*delta_x+k-div(patch_size,2)), div(patch_size,2) - abs(j*delta_x+l-div(patch_size,2))]) # positional feature ## appending an array
-
-                        # Add all the features together
-                        feature1 = np.append(feature, train_feature_unit1[patch_ind,:])     ## appending an array
-                        feature2 = np.append(feature, train_feature_unit2[patch_ind,:])   
-
-                        feature_list_unit1.append(feature1)
-                        feature_list_unit2.append(feature2) ## appending a arrays
-
-    patch_ind += 1  ## adjusting for different way of generating patch_ind (will need to get thihttps://www.youtube.com/watch?v=hWlYEaxubRYs atomically or just formulaically)
+                        for d in range(0, depth):
+                            if d < np_img_patch_list.shape[3]:
+                                feature_list_unit1[t, i, j, k, l, d] = np_img_patch_list[patch_ind][k,l,d]
+                                feature_list_unit2[t, i, j, k, l, d] = np_img_patch_list[patch_ind][k,l,d]
+                            elif d == np_img_patch_list.shape[3]:
+                                feature_list_unit1[t, i, j, k, l, d] = div(patch_size,2) - abs(i*delta_x+k-div(patch_size,2))
+                                feature_list_unit2[t, i, j, k, l, d] = div(patch_size,2) - abs(i*delta_x+k-div(patch_size,2))
+                            elif d == 1 + np_img_patch_list.shape[3]:
+                                feature_list_unit1[t, i, j, k, l, d] = div(patch_size,2) - abs(j*delta_x+l-div(patch_size,2))
+                                feature_list_unit2[t, i, j, k, l, d] = div(patch_size,2) - abs(j*delta_x+l-div(patch_size,2))
+                            elif d < depth1 and depth2:
+                                feature_list_unit1[t, i, j, k, l, d] = train_feature_unit1[patch_ind, d - (np_img_patch_list.shape[3] + 2)]
+                                feature_list_unit2[t, i, j, k, l, d] = train_feature_unit2[patch_ind, d - (np_img_patch_list.shape[3] + 2)]
+                            elif d < depth2:
+                                feature_list_unit2[t, i, j, k, l, d] = train_feature_unit2[patch_ind, d - (np_img_patch_list.shape[3] + 2)]
+                                
+    patch_ind += 1  ## adjusting for different way of generating patch_ind (will need to get this atomically or just formulaically)
     gt_list = np.array(mask_patch_list).flatten()      ## equivalent to assigning gt_list in the above loop
-    feature_list_unit1 = np.array(feature_list_unit1) 
-    feature_list_unit2 = np.array(feature_list_unit2)  
+
+    feature_list_unit1 = feature_list_unit1.reshape(count * (img_size//delta_x) * (img_size//delta_x) * patch_size * patch_size, -1)
+    feature_list_unit2 = feature_list_unit2.reshape(count * (img_size//delta_x) * (img_size//delta_x) * patch_size * patch_size, -1)
     
     print(feature_list_unit1.shape)
     print(feature_list_unit2.shape)
