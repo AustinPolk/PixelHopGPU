@@ -143,12 +143,12 @@ def run():
     patch_ind = 0
     # Control the num of training images
     count = num_training_imgs
-    for train_img_addr in range(0, count):
+    for t in range(0, count):
         for i in range(0, img_size//delta_x):
             for j in range(0, img_size//delta_x):
                 for k in range(0, patch_size):
                     for l in range(0, patch_size):
-                        patch_ind = i* (img_size//delta_x) + j
+                        patch_ind = t * (img_size//delta_x) * (img_size//delta_x) + i * (img_size//delta_x) + j
                         gt = np_mask_patch_list[patch_ind][k,l]    ## single value
                         # get features
                         feature = np.array([])
