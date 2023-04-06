@@ -135,9 +135,8 @@ def run():
     print(train_feature_unit2.shape)
     
     # Aligned all the features along with the ground truth
-    feature_list_unit1, feature_list_unit2, gt_list = [], [], []
+    feature_list_unit1, feature_list_unit2 = [], []
 
-    np_mask_patch_list = np.array(mask_patch_list)
     np_img_patch_list = np.array(img_patch_list)
 
     patch_ind = 0
@@ -149,7 +148,6 @@ def run():
                 for k in range(0, patch_size):
                     for l in range(0, patch_size):
                         patch_ind = t * (img_size//delta_x) * (img_size//delta_x) + i * (img_size//delta_x) + j
-                        gt = np_mask_patch_list[patch_ind][k,l]    ## single value
                         # get features
                         feature = np.array([])
                         # subpatch_ind = patch_ind*(div(patch_size,subpatch_size))*(div(patch_size,subpatch_size)) + (div(k,subpatch_size))*(div(patch_size,subpatch_size)) + l//subpatch_size 
@@ -163,10 +161,8 @@ def run():
                         feature_list_unit1.append(feature1)
                         feature_list_unit2.append(feature2) ## appending a arrays
 
-                        gt_list.append(gt)  ## appending single values
-
-    patch_ind += 1  ## adjusting for different way of generating patch_ind (will need to get this atomically or just formulaically)
-    gt_list = np.array(gt_list)
+    patch_ind += 1  ## adjusting for different way of generating patch_ind (will need to get thihttps://www.youtube.com/watch?v=hWlYEaxubRYs atomically or just formulaically)
+    gt_list = np.array(mask_patch_list).flatten()      ## equivalent to assigning gt_list in the above loop
     feature_list_unit1 = np.array(feature_list_unit1) 
     feature_list_unit2 = np.array(feature_list_unit2)  
     
