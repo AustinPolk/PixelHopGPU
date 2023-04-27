@@ -20,15 +20,26 @@ from sklearn import preprocessing
 import pickle
 from sklearn.feature_selection import f_classif, SelectPercentile
 from datetime import timedelta
+import sys
+
+
+
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+path = r'/'.join(resource_path('').split('\\')[:-2]) + '/'
+
 
 SAVE={}
 img_size = 1024
 patch_size = 64#16
 delta_x = patch_size # non overlap
 
-num_training_imgs = 1
-train_img_path = r'C:/Users/Austin/Desktop/PixelHop/data/train/*.png'
-test_img_path =  r'C:/Users/Austin/Desktop/PixelHop/data/test/*.png' 
+num_training_imgs = 7
+train_img_path = path + r'data/train/*.png'
+test_img_path =  path + r'data/test/Mouse data (1024x1024)/*.png'
 
 train_img_addrs = glob.glob(train_img_path)
 test_img_addrs = glob.glob(test_img_path)
@@ -109,12 +120,12 @@ def run():
 
     ################################################## PIXELHOP UNIT 1 ####################################################
         
-    train_feature1=PixelHop_Unit_GPU(img_patches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=1, energypercent=0.98)
+    train_feature1=PixelHop_Unit_GPU(img_patches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=1, energypercent=0.97)
     
     ################################################ PIXELHOP UNIT 2 ####################################################
 
     train_featurem1 = MaxPooling(train_feature1)
-    train_feature2=PixelHop_Unit_GPU(train_featurem1, dilate=1, pad='reflect',  weight_name='pixelhop2.pkl', getK=1, energypercent=0.98)
+    train_feature2=PixelHop_Unit_GPU(train_featurem1, dilate=1, pad='reflect',  weight_name='pixelhop2.pkl', getK=1, energypercent=0.97)
    
     
     print(train_feature1.shape)
@@ -202,23 +213,23 @@ def run():
     print(feature.shape)
 
     # Define and train XGBoost algorithm
-    xgb_model = xgb.XGBClassifier(objective="binary:logistic", verbosity=3)
+    xgb_model = xgb.XGBClassifier(tree_method='gpu_hist', objective="binary:logistic", verbosity=3)
     clf = xgb_model.fit(feature, gt_list)
 
     # Save all the model files
-    pickle.dump(clf, open("C:/Users/Austin/Desktop/PixelHop/results/classifier.sav",'wb'))
-    pickle.dump(scaler1, open("C:/Users/Austin/Desktop/PixelHop/results/scaler1.sav",'wb'))
-    pickle.dump(fs1, open("C:/Users/Austin/Desktop/PixelHop/results/fs1.sav",'wb'))
-    pickle.dump(fs2, open("C:/Users/Austin/Desktop/PixelHop/results/fs2.sav",'wb'))
+
+    pickle.dump(clf, open( path + "results/classifier.sav",'wb'))
+    pickle.dump(scaler1, open( path +"results/scaler1.sav",'wb'))
+    pickle.dump(fs1, open( path + "results/fs1.sav",'wb'))
+    pickle.dump(fs2, open( path + "results/fs2.sav",'wb'))
     print('All models saved!!!')
 
     stop_train = timeit.default_timer()
 
     print('Total Time: ' + str(timedelta(seconds=stop_train-start_train)))
-    f = open('C:/Users/Austin/Desktop/PixelHop/results/train_time.txt','w+')
+    f = open( path + 'results/train_time.txt','w+')
     f.write('Total Time: ' + str(timedelta(seconds=stop_train-start_train))+'\n')
     f.close()
-
 
 
     start_test = timeit.default_timer()
@@ -270,11 +281,11 @@ def run():
                     
                     ################################################## PIXELHOP UNIT 1 ####################################################
         
-                    test_feature1=PixelHop_Unit_GPU(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.98)
+                    test_feature1=PixelHop_Unit_GPU(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.97)
 
                     ################################################# PIXELHOP UNIT 2 ####################################################
                     test_featurem1 = MaxPooling(test_feature1)
-                    test_feature2=PixelHop_Unit_GPU(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.98)
+                    test_feature2=PixelHop_Unit_GPU(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.97)
                     
     
                     test_feature_reduce_unit1 = test_feature1 
@@ -359,13 +370,13 @@ def run():
             print('one predicted mask')
             predict_mask = np.argmax(predict_0or1, axis=2)
 
-            imageio.imwrite('C:/Users/Austin/Desktop/PixelHop/results/'+os.path.basename(test_img_addr), predict_mask)
+            imageio.imwrite( path +'results/'+os.path.basename(test_img_addr), predict_mask)
 
     
     stop_test = timeit.default_timer()
 
     print('Total Time: ' + str(timedelta(seconds=stop_test-start_test)))
-    f = open('C:/Users/Austin/Desktop/PixelHop/results/test_time.txt','w+')
+    f = open( path +'results/test_time.txt','w+')
     f.write('Total Time: ' + str(timedelta(seconds=stop_test-start_test))+'\n')
     f.close()
 
