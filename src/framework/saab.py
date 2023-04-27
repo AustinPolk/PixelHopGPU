@@ -35,13 +35,13 @@ class Saab():
         kernels = pca.components_[:num_components, :]
     
         mean = pca.mean_
-        print("       <Info>        Num of kernels: %d" % num_components)
-        print("       <Info>        Energy percent: %f" % np.cumsum(pca.explained_variance_ratio_)[num_components - 1])
+        #print("       <Info>        Num of kernels: %d" % num_components)
+        #print("       <Info>        Energy percent: %f" % np.cumsum(pca.explained_variance_ratio_)[num_components - 1])
         return kernels, mean
 
     def Saab_transform(self, pixelhop_feature, kernel_sizes, energy_percent, useDC): 
         S = pixelhop_feature.shape
-        print("       <Info>        pixelhop_feature.shape: %s"%str(pixelhop_feature.shape))
+        #print("       <Info>        pixelhop_feature.shape: %s"%str(pixelhop_feature.shape))
 
         sample_patches = pixelhop_feature.reshape(S[0]*S[1]*S[2],-1)
         
@@ -50,7 +50,7 @@ class Saab():
 
         sample_patches_centered, feature_expectation = self.remove_mean(sample_patches, axis=0)
         training_data, dc = self.remove_mean(sample_patches_centered, axis=1)
-        print('       <Info>        training_data.shape: {}'.format(training_data.shape))
+        #print('       <Info>        training_data.shape: {}'.format(training_data.shape))
         
         kernels, mean = self.find_kernels_pca(training_data, energy_percent)
 
@@ -60,16 +60,16 @@ class Saab():
         
         pca_params['Layer_%d/bias' % 0] = bias
 
-        print("       <Info>        Sample patches shape after flatten: %s"%str(sample_patches.shape))
-        print("       <Info>        Kernel shape: %s"%str(kernels.shape))
-        print("       <Info>        Transformed shape: %s"%str(transformed.shape))
+        #print("       <Info>        Sample patches shape after flatten: %s"%str(sample_patches.shape))
+        #print("       <Info>        Kernel shape: %s"%str(kernels.shape))
+        #print("       <Info>        Transformed shape: %s"%str(transformed.shape))
         pca_params['Layer_%d/feature_expectation' % 0] = feature_expectation
         pca_params['Layer_%d/kernel' % 0] = kernels
         pca_params['Layer_%d/pca_mean' % 0] = mean
         return pca_params
 
     def fit(self, pixelhop_feature):
-        print("------------------- Start: Saab transformation")
+        #print("------------------- Start: Saab transformation")
         t0 = time.time()
         pca_params = self.Saab_transform(pixelhop_feature=pixelhop_feature,
                                                 kernel_sizes=self.kernel_sizes,
@@ -78,7 +78,7 @@ class Saab():
         fw = open(self.pca_name, 'wb')
         pickle.dump(pca_params, fw)
         fw.close()
-        print("       <Info>        Save pca params as name: %s"%str(self.pca_name))
-        print("------------------- End: Saab transformation -> using %10f seconds"%(time.time()-t0))    
+        #print("       <Info>        Save pca params as name: %s"%str(self.pca_name))
+       # print("------------------- End: Saab transformation -> using %10f seconds"%(time.time()-t0))    
 
 

@@ -21,8 +21,8 @@ import pickle
 from sklearn.feature_selection import f_classif, SelectPercentile
 from datetime import timedelta
 import sys
-
-
+import multiprocessing as mp
+from multiprocessing.pool import Pool
 
 def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
@@ -31,6 +31,8 @@ def resource_path(relative_path):
 
 path = r'/'.join(resource_path('').split('\\')[:-2]) + '/'
 
+# number of logical cores to use in parallel when testing on many images
+numCPUCoresToUse = mp.cpu_count - 1 if mp.cpu_count > 1 else 1 
 
 SAVE={}
 img_size = 1024
@@ -231,154 +233,49 @@ def run():
     f.write('Total Time: ' + str(timedelta(seconds=stop_train-start_train))+'\n')
     f.close()
 
+    # delete unused variables to free up memory
+    del img_patch_list, img, img_patches, img_patch, np_img_patch_list
+    del gt_list
+    del feature, concat_features
+    del mask_patch, mask, mask_patch_list, mask_patches
+    del train_feature1, train_feature2, train_featurem1, train_feature_unit1, train_feature_unit2
+    del d_feature_list_unit1, d_feature_list_unit2, d_train_feature_unit1, d_train_feature_unit2, d_img_patch_list
 
     start_test = timeit.default_timer()
     print("----------------------TESTING-------------------------")
-
-    test_img_patch, test_img_patch_list = [], []
-    count = 0
-    for test_img_addr in test_img_addrs:
-        if 'raw' in test_img_addr: # only want to load testing images that are raw
-            count += 1
-            print('Processing {}............'.format(test_img_addr))
-
-            img = loadImage(test_img_addr) 
-
-            if len(img.shape) != 3:
-                img = np.expand_dims(img, axis=2)
-
-            # Initialzing
-            predict_0or1 = np.zeros((img_size, img_size, 2))
-
-            predict_mask = np.zeros(img.shape)
-
-            # Create patches for test image
-            for i in range(0, img_size, delta_x):
-                for j in range(0, img_size, delta_x):
-                    if i+patch_size <= img_size and j+patch_size <= img_size:
-                        test_img_patch = img[i:i+patch_size, j:j+patch_size, :]
-
-                    elif i+patch_size > img_size and j+patch_size <= img_size:
-                        temp_size = img[i:, j:j+patch_size, :].shape
-                        test_img_patch = np.lib.pad(img[i:, j:j+patch_size, :], ((0,patch_size-temp_size[0]),(0,0), (0,0)), 'edge')
-
-                    elif i+patch_size <= img_size and j+patch_size > img_size:
-                        temp_size = img[i:i+patch_size, j:, :].shape
-                        test_img_patch = np.lib.pad(img[i:i+patch_size, j:, :], ((0,0),(0,patch_size-temp_size[1]), (0,0)), 'edge')
-
-                    else: 
-                        temp_size = img[i:, j:, :].shape
-                        test_img_patch = np.lib.pad(img[i:, j:, :], ((0,patch_size-temp_size[0]),(0,patch_size-temp_size[1]), (0,0)), 'edge')
-                    assert (test_img_patch.shape[0], test_img_patch.shape[1]) == (patch_size,patch_size)
-                    
-                    test_img_patch_list.append(test_img_patch)
-                    
-
-                    # convert list to numpy
-                    test_img_subpatches = np.asarray(test_img_patch_list)
-                    print(test_img_subpatches.shape)
-
-                    
-                    ################################################## PIXELHOP UNIT 1 ####################################################
-        
-                    test_feature1=PixelHop_Unit_GPU(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.97)
-
-                    ################################################# PIXELHOP UNIT 2 ####################################################
-                    test_featurem1 = MaxPooling(test_feature1)
-                    test_feature2=PixelHop_Unit_GPU(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.97)
-                    
     
-                    test_feature_reduce_unit1 = test_feature1 
-                    test_feature_reduce_unit2 = myResize(test_feature2, test_img_subpatches.shape[1], test_img_subpatches.shape[2])
-                    print(test_feature_reduce_unit1.shape)
-                    print(test_feature_reduce_unit2.shape)
-
-                    
-                    test_feature_unit1 = test_feature_reduce_unit1.reshape(test_feature_reduce_unit1.shape[0]*test_feature_reduce_unit1.shape[1]*test_feature_reduce_unit1.shape[2], -1)
-                    test_feature_unit2 = test_feature_reduce_unit2.reshape(test_feature_reduce_unit2.shape[0]*test_feature_reduce_unit2.shape[1]*test_feature_reduce_unit2.shape[2], -1)
-                    
-                    print(test_feature_unit1.shape)
-                    print(test_feature_unit2.shape)
+    #for i in range(len(test_img_addrs)):
+    #    testImage(i, scaler1, clf, fs1, fs2, patch_ind)
     
-                    
-                    #--------lag unit--------------
-                    test_feature_list_unit1, test_feature_list_unit2, test_feature_list_unit3, test_feature_list_unit4 = [], [], [], []
-                    
-                    for k in range(patch_size):
-                        for l in range(patch_size):
-                            ######################################
-                            # get features
-                            feature = np.array([])
-                            # patch_ind = (div(k,patch_size))*(div(patch_size,patch_size)) + div(l,patch_size) # int div
-                            # subpatch_ind = (div(k,subpatch_size))*(div(patch_size,subpatch_size)) + div(l,subpatch_size) # int div
-                            feature = np.append(feature, test_img_patch[k,l,:])
-                            feature = np.append(feature, [div(patch_size,2) - abs(i+k-div(patch_size,2)), div(patch_size,2) - abs(j+l-div(patch_size,2))]) #int div
-                            
-                            # feature = np.append(feature, test_feature12[0,:]) #takes only first few comps
-                            feature1 = np.append(feature, test_feature_unit1[patch_ind,:])
-                            feature2 = np.append(feature, test_feature_unit2[patch_ind,:])
+    numCores = numCPUCoresToUse
+    numImages = len(test_img_addrs)
+    chunkSize = math.ceil(numImages/numCores)
 
-                            test_feature_list_unit1.append(feature1)
-                            test_feature_list_unit2.append(feature2)
-                    
+    with Pool(numCores, initializer=init_pool, initargs=(path, test_img_addrs, patch_size, scaler1, clf, fs1, fs2, patch_ind,)) as p:
+        print(p.map(testImage, range(numImages), chunksize=chunkSize))
 
-                    feature_list_unit1 = np.array(test_feature_list_unit1)
-                    feature_list_unit2 = np.array(test_feature_list_unit2)
-
-                    print(feature_list_unit1.shape)
-                    print(feature_list_unit2.shape)
-
-
-                    test_feature_red1= fs1.transform(feature_list_unit1)
-                    test_feature_red2= fs2.transform(feature_list_unit2)
-
-
-                    test_concat_features  =np.concatenate((test_feature_red1, test_feature_red2), axis=1)
-                    print(test_concat_features.shape)
-                    
-
-                    feature_test = scaler1.transform(test_concat_features)
-                    print(feature_test.shape)
-                    
-
-                    pre_list = clf.predict(feature_test)
-                    print(pre_list.shape)
-                    print(np.unique(pre_list))
-
-                    # Generate predicted result
-                    for k in range(patch_size):
-                        for l in range(patch_size):
-                            if i+k >= img_size or j+l >= img_size: break
-
-                            # Binary
-                            if pre_list[k*patch_size + l] > 0.5:
-                                predict_0or1[i+k, j+l, 1] += 1
-                            else:
-                                predict_0or1[i+k, j+l, 0] += 1
-
-                            # Multi-class
-                            # if pre_list[k*patch_size + l] == 85.0:
-                            #     predict_0or1[i+k, j+l, 1] += 1
-                            # if pre_list[k*patch_size + l] == 170.0:
-                            #     predict_0or1[i+k, j+l, 2] += 1
-                            # if pre_list[k*patch_size + l] == 255.0:
-                            #     predict_0or1[i+k, j+l, 3] += 1
-                            # else:
-                            #     predict_0or1[i+k, j+l, 0] += 1
-
-            print('*************************************************************************************')
-            print('one predicted mask')
-            predict_mask = np.argmax(predict_0or1, axis=2)
-
-            imageio.imwrite( path +'results/'+os.path.basename(test_img_addr), predict_mask)
-
-    
     stop_test = timeit.default_timer()
 
     print('Total Time: ' + str(timedelta(seconds=stop_test-start_test)))
     f = open( path +'results/test_time.txt','w+')
     f.write('Total Time: ' + str(timedelta(seconds=stop_test-start_test))+'\n')
     f.close()
+
+def init_pool(a_path, a_test_img_addrs, a_patch_size, a_scaler1, a_clf, a_fs1, a_fs2, a_patch_ind):
+    global path
+    global test_img_addrs
+    global patch_size
+    global scaler1, clf, fs1, fs2
+    global patch_ind
+
+    path = a_path
+    test_img_addrs = a_test_img_addrs
+    patch_size = a_patch_size
+    scaler1 = a_scaler1
+    clf = a_clf
+    fs1 = a_fs1
+    fs2 = a_fs2
+    patch_ind = a_patch_ind
 
 @cuda.jit
 def GPU_Feature(d_img_patch_list, d_train_feature_unit1, d_train_feature_unit2, d_feature_list_unit1, d_feature_list_unit2, d_threadDimensions, delta_x, patch_size, depth1, depth2):
@@ -417,6 +314,147 @@ def indices6(m, threadDimensions):
     d = m
     return t, i, j, k, l, d
 
+def testImage(test_img_index):#, scaler1, clf, fs1, fs2, patch_ind):
+    test_img_patch_list = []
+
+    test_img_addr = test_img_addrs[test_img_index]
+
+    if 'raw' in test_img_addr: # only want to load testing images that are raw
+        #print('Processing {}............'.format(test_img_addr))
+
+        img = loadImage(test_img_addr) 
+
+        if len(img.shape) != 3:
+            img = np.expand_dims(img, axis=2)
+
+        # Initialzing
+        predict_0or1 = np.zeros((img_size, img_size, 2))
+
+        predict_mask = np.zeros(img.shape)
+
+        # Create patches for test image
+        for i in range(0, img_size, delta_x):
+            for j in range(0, img_size, delta_x):
+                if i+patch_size <= img_size and j+patch_size <= img_size:
+                    test_img_patch = img[i:i+patch_size, j:j+patch_size, :]
+
+                elif i+patch_size > img_size and j+patch_size <= img_size:
+                    temp_size = img[i:, j:j+patch_size, :].shape
+                    test_img_patch = np.lib.pad(img[i:, j:j+patch_size, :], ((0,patch_size-temp_size[0]),(0,0), (0,0)), 'edge')
+
+                elif i+patch_size <= img_size and j+patch_size > img_size:
+                    temp_size = img[i:i+patch_size, j:, :].shape
+                    test_img_patch = np.lib.pad(img[i:i+patch_size, j:, :], ((0,0),(0,patch_size-temp_size[1]), (0,0)), 'edge')
+
+                else: 
+                    temp_size = img[i:, j:, :].shape
+                    test_img_patch = np.lib.pad(img[i:, j:, :], ((0,patch_size-temp_size[0]),(0,patch_size-temp_size[1]), (0,0)), 'edge')
+                assert (test_img_patch.shape[0], test_img_patch.shape[1]) == (patch_size,patch_size)
+                    
+                test_img_patch_list.append(test_img_patch)
+                    
+
+                # convert list to numpy
+                test_img_subpatches = np.asarray(test_img_patch_list)
+                print(test_img_subpatches.shape)
+
+                    
+                ################################################## PIXELHOP UNIT 1 ####################################################
+        
+                test_feature1=PixelHop_Unit_GPU(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.97)
+
+                ################################################# PIXELHOP UNIT 2 ####################################################
+                test_featurem1 = MaxPooling(test_feature1)
+                test_feature2=PixelHop_Unit_GPU(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.97)
+                    
+    
+                test_feature_reduce_unit1 = test_feature1 
+                test_feature_reduce_unit2 = myResize(test_feature2, test_img_subpatches.shape[1], test_img_subpatches.shape[2])
+                print(test_feature_reduce_unit1.shape)
+                print(test_feature_reduce_unit2.shape)
+
+                    
+                test_feature_unit1 = test_feature_reduce_unit1.reshape(test_feature_reduce_unit1.shape[0]*test_feature_reduce_unit1.shape[1]*test_feature_reduce_unit1.shape[2], -1)
+                test_feature_unit2 = test_feature_reduce_unit2.reshape(test_feature_reduce_unit2.shape[0]*test_feature_reduce_unit2.shape[1]*test_feature_reduce_unit2.shape[2], -1)
+                    
+                print(test_feature_unit1.shape)
+                print(test_feature_unit2.shape)
+    
+                    
+                #--------lag unit--------------
+                test_feature_list_unit1, test_feature_list_unit2, test_feature_list_unit3, test_feature_list_unit4 = [], [], [], []
+                    
+                for k in range(patch_size):
+                    for l in range(patch_size):
+                        ######################################
+                        # get features
+                        feature = np.array([])
+                        # patch_ind = (div(k,patch_size))*(div(patch_size,patch_size)) + div(l,patch_size) # int div
+                        # subpatch_ind = (div(k,subpatch_size))*(div(patch_size,subpatch_size)) + div(l,subpatch_size) # int div
+                        feature = np.append(feature, test_img_patch[k,l,:])
+                        feature = np.append(feature, [div(patch_size,2) - abs(i+k-div(patch_size,2)), div(patch_size,2) - abs(j+l-div(patch_size,2))]) #int div
+                            
+                        # feature = np.append(feature, test_feature12[0,:]) #takes only first few comps
+                        feature1 = np.append(feature, test_feature_unit1[patch_ind,:])
+                        feature2 = np.append(feature, test_feature_unit2[patch_ind,:])
+
+                        test_feature_list_unit1.append(feature1)
+                        test_feature_list_unit2.append(feature2)
+                    
+
+                feature_list_unit1 = np.array(test_feature_list_unit1)
+                feature_list_unit2 = np.array(test_feature_list_unit2)
+
+                print(feature_list_unit1.shape)
+                print(feature_list_unit2.shape)
+
+
+                test_feature_red1= fs1.transform(feature_list_unit1)
+                test_feature_red2= fs2.transform(feature_list_unit2)
+
+
+                test_concat_features  =np.concatenate((test_feature_red1, test_feature_red2), axis=1)
+                print(test_concat_features.shape)
+                    
+
+                feature_test = scaler1.transform(test_concat_features)
+                print(feature_test.shape)
+                    
+
+                pre_list = clf.predict(feature_test)
+                print(pre_list.shape)
+                print(np.unique(pre_list))
+
+                # Generate predicted result
+                for k in range(patch_size):
+                    for l in range(patch_size):
+                        if i+k >= img_size or j+l >= img_size: break
+
+                        # Binary
+                        if pre_list[k*patch_size + l] > 0.5:
+                            predict_0or1[i+k, j+l, 1] += 1
+                        else:
+                            predict_0or1[i+k, j+l, 0] += 1
+
+                        # Multi-class
+                        # if pre_list[k*patch_size + l] == 85.0:
+                        #     predict_0or1[i+k, j+l, 1] += 1
+                        # if pre_list[k*patch_size + l] == 170.0:
+                        #     predict_0or1[i+k, j+l, 2] += 1
+                        # if pre_list[k*patch_size + l] == 255.0:
+                        #     predict_0or1[i+k, j+l, 3] += 1
+                        # else:
+                        #     predict_0or1[i+k, j+l, 0] += 1
+
+        #print('*************************************************************************************')
+        #print('one predicted mask')
+        predict_mask = np.argmax(predict_0or1, axis=2)
+
+        imageio.imwrite( path +'results/'+os.path.basename(test_img_addr), predict_mask)
+
+        #print('Test image '+test_img_index+' complete...')
+
+        return 1
     
 if __name__=="__main__":
 

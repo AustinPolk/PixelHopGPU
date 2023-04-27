@@ -20,13 +20,13 @@ from framework.saab import Saab
 threadsPerBlock = 64        ## threads used per block for GPU Kernels
 
 def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', getK=False, useDC=False, energypercent=0.92):
-    print("=========== Start: PixelHop_Unit_GPU")
+    #print("=========== Start: PixelHop_Unit_GPU")
     t0 = time.time()
     weight_path = '../weight/'+weight_name  ## weight path for saab
 
     ### NEIGHBOUR/BIAS PADDING ###
-    print("       <Info>        dilate: %s"%str(dilate))
-    print("       <Info>        padding: %s"%str(pad))
+    #print("       <Info>        dilate: %s"%str(dilate))
+    #print("       <Info>        padding: %s"%str(pad))
     if pad == 'reflect':
         feature = np.pad(feature, ((0,0),(dilate, dilate),(dilate, dilate),(0,0)), 'reflect')
     elif pad == 'zeros':
@@ -52,14 +52,14 @@ def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', g
         saab.fit(resNeighbour)
 
     ### GET BIAS AND WEIGHT ###
-    print("       <Info>        Using weight: %s"%str(weight_path))
+    #print("       <Info>        Using weight: %s"%str(weight_path))
     fr = open(weight_path, 'rb')
     pca_params = pickle.load(fr)                
     fr.close()
     weight = pca_params['Layer_0/kernel'].astype(np.float32)
     bias = pca_params['Layer_%d/bias' % 0]
-    print("       <Info>        bias value: %s"%str(bias))
-    print("       <Info>        weight shape: %s"%str(weight.shape))
+    #print("       <Info>        bias value: %s"%str(bias))
+    #print("       <Info>        weight shape: %s"%str(weight.shape))
 
     ### INVOKE BIAS KERNEL ###
     GPU_Feature_Bias[blocksPerGrid, threadsPerBlock](d_feature, d_res, dilate, fShape[3], bias, d_threadDimensions)
@@ -71,8 +71,8 @@ def PixelHop_Unit_GPU(feature, dilate=1, pad='reflect', weight_name='tmp.pkl', g
         e = np.zeros((1, weight.shape[0]))
         e[0, 0] = 1
         transformed_feature -= bias * e
-    print("       <Info>        Output feature shape: %s"%str(transformed_feature.shape))
-    print("=========== End: PixelHop_Unit_GPU -> using %10f seconds"%(time.time()-t0))
+    #print("       <Info>        Output feature shape: %s"%str(transformed_feature.shape))
+    #print("=========== End: PixelHop_Unit_GPU -> using %10f seconds"%(time.time()-t0))
     return transformed_feature
 
 @cuda.jit
