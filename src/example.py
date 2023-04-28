@@ -41,7 +41,7 @@ delta_x = patch_size # non overlap
 
 num_training_imgs = 10
 train_img_path = path + r'data/train/*.png'
-test_img_path =  path + r'data/test/whole test/*.png'
+test_img_path =  path + r'data/test/*.png'
 
 train_img_addrs = glob.glob(train_img_path)
 test_img_addrs = glob.glob(test_img_path)
