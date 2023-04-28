@@ -32,16 +32,16 @@ def resource_path(relative_path):
 path = r'/'.join(resource_path('').split('\\')[:-2]) + '/'
 
 # number of logical cores to use in parallel when testing on many images
-numCPUCoresToUse = mp.cpu_count - 1 if mp.cpu_count > 1 else 1 
+numCPUCoresToUse = mp.cpu_count() - 1 if mp.cpu_count() > 1 else 1 
 
 SAVE={}
 img_size = 1024
 patch_size = 64#16
 delta_x = patch_size # non overlap
 
-num_training_imgs = 7
+num_training_imgs = 10
 train_img_path = path + r'data/train/*.png'
-test_img_path =  path + r'data/test/Mouse data (1024x1024)/*.png'
+test_img_path =  path + r'data/test/whole test/*.png'
 
 train_img_addrs = glob.glob(train_img_path)
 test_img_addrs = glob.glob(test_img_path)
@@ -122,12 +122,12 @@ def run():
 
     ################################################## PIXELHOP UNIT 1 ####################################################
         
-    train_feature1=PixelHop_Unit_GPU(img_patches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=1, energypercent=0.97)
+    train_feature1=PixelHop_Unit_GPU(img_patches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=1, energypercent=0.95)
     
     ################################################ PIXELHOP UNIT 2 ####################################################
 
     train_featurem1 = MaxPooling(train_feature1)
-    train_feature2=PixelHop_Unit_GPU(train_featurem1, dilate=1, pad='reflect',  weight_name='pixelhop2.pkl', getK=1, energypercent=0.97)
+    train_feature2=PixelHop_Unit_GPU(train_featurem1, dilate=1, pad='reflect',  weight_name='pixelhop2.pkl', getK=1, energypercent=0.95)
    
     
     print(train_feature1.shape)
@@ -328,7 +328,7 @@ def testImage(test_img_index):#, scaler1, clf, fs1, fs2, patch_ind):
             img = np.expand_dims(img, axis=2)
 
         # Initialzing
-        predict_0or1 = np.zeros((img_size, img_size, 2))
+        predict_0or1 = np.zeros((img_size, img_size, 4))
 
         predict_mask = np.zeros(img.shape)
 
@@ -361,11 +361,11 @@ def testImage(test_img_index):#, scaler1, clf, fs1, fs2, patch_ind):
                     
                 ################################################## PIXELHOP UNIT 1 ####################################################
         
-                test_feature1=PixelHop_Unit_GPU(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.97)
+                test_feature1=PixelHop_Unit_GPU(test_img_subpatches, dilate=1, pad='reflect', weight_name='pixelhop1.pkl', getK=0, energypercent=0.95)
 
                 ################################################# PIXELHOP UNIT 2 ####################################################
                 test_featurem1 = MaxPooling(test_feature1)
-                test_feature2=PixelHop_Unit_GPU(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.97)
+                test_feature2=PixelHop_Unit_GPU(test_featurem1, dilate=1, pad='reflect', weight_name='pixelhop2.pkl', getK=0, energypercent=0.95)
                     
     
                 test_feature_reduce_unit1 = test_feature1 
@@ -400,7 +400,8 @@ def testImage(test_img_index):#, scaler1, clf, fs1, fs2, patch_ind):
 
                         test_feature_list_unit1.append(feature1)
                         test_feature_list_unit2.append(feature2)
-                    
+                        
+                del test_feature_unit1, test_feature_unit2
 
                 feature_list_unit1 = np.array(test_feature_list_unit1)
                 feature_list_unit2 = np.array(test_feature_list_unit2)
@@ -431,12 +432,24 @@ def testImage(test_img_index):#, scaler1, clf, fs1, fs2, patch_ind):
                         if i+k >= img_size or j+l >= img_size: break
 
                         # Binary
-                        if pre_list[k*patch_size + l] > 0.5:
-                            predict_0or1[i+k, j+l, 1] += 1
-                        else:
-                            predict_0or1[i+k, j+l, 0] += 1
+                        # if pre_list[k*patch_size + l] > 0.5:
+                        #     predict_0or1[i+k, j+l, 1] += 1
+                        # else:
+                        #     predict_0or1[i+k, j+l, 0] += 1
 
                         # Multi-class
+                        if pre_list[k*patch_size + l] == 1.0:
+                            predict_0or1[i+k, j+l, 1] += 1
+                            print('atria')
+                        elif pre_list[k*patch_size + l] == 2.0:
+                            predict_0or1[i+k, j+l, 2] += 1
+                            print('trabaculae')
+                        elif pre_list[k*patch_size + l] == 3.0:
+                            predict_0or1[i+k, j+l, 3] += 1
+                            print('ventricle')
+                        else:
+                            predict_0or1[i+k, j+l, 0] += 1
+                                
                         # if pre_list[k*patch_size + l] == 85.0:
                         #     predict_0or1[i+k, j+l, 1] += 1
                         # if pre_list[k*patch_size + l] == 170.0:
